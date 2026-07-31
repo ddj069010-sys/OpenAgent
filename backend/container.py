@@ -75,6 +75,25 @@ class ServiceContainer:
         self.register_factory("CognitiveEngine", lambda: __import__("backend.cognitive_engine", fromlist=["CognitiveEngine"]).CognitiveEngine)
         # AutonomousExecutionFramework: transient — circulatory system connecting all subsystems
         self.register_factory("AutonomousExecutionFramework", lambda: __import__("backend.autonomous_execution_framework", fromlist=["AutonomousExecutionFramework"]).AutonomousExecutionFramework)
+        # ── Phase 8 Awareness Layer ──────────────────────────────────────────
+        # ProjectStateStore: transient — bound to a state file path
+        self.register_factory("ProjectStateStore", lambda: __import__("backend.project_state", fromlist=["ProjectStateStore"]).ProjectStateStore)
+        # ADRStore: transient — bound to an ADR file path
+        self.register_factory("ADRStore", lambda: __import__("backend.adr_store", fromlist=["ADRStore"]).ADRStore)
+        # GoalGuard: transient — requires ProjectState + ADRStore
+        self.register_factory("GoalGuard", lambda: __import__("backend.goal_guard", fromlist=["GoalGuard"]).GoalGuard)
+        # SessionRecovery: transient — bound to a workspace root
+        self.register_factory("SessionRecovery", lambda: __import__("backend.session_recovery", fromlist=["SessionRecovery"]).SessionRecovery)
+        # DriftDetector: transient — bound to a workspace root
+        self.register_factory("DriftDetector", lambda: __import__("backend.drift_detector", fromlist=["DriftDetector"]).DriftDetector)
+        # ChangeImpactAnalyzer: transient — bound to a workspace root
+        self.register_factory("ChangeImpactAnalyzer", lambda: __import__("backend.change_impact", fromlist=["ChangeImpactAnalyzer"]).ChangeImpactAnalyzer)
+        # EngineeringJournal: transient — bound to a journal file path
+        self.register_factory("EngineeringJournal", lambda: __import__("backend.engineering_journal", fromlist=["EngineeringJournal"]).EngineeringJournal)
+        # RulesEngine: singleton — stateless deterministic rule set
+        self.register_instance("RulesEngine", __import__("backend.rules_engine", fromlist=["RulesEngine"]).RulesEngine())
+        # ProjectDirector: transient — top-level coordinator, bound to workspace root
+        self.register_factory("ProjectDirector", lambda: __import__("backend.project_director", fromlist=["ProjectDirector"]).ProjectDirector)
 
     def register_instance(self, service_name: str, instance: Any) -> None:
         """Registers a singleton instance by service name."""
