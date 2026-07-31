@@ -8,6 +8,8 @@ Ensures subsystems consume abstractions/interfaces, never concrete dependencies 
 from typing import Dict, Any, Callable
 from backend.capability_registry import CapabilityRegistry, capability_registry
 from backend.config.service import get_config_service
+from backend.checkpoint_store import CheckpointStore, get_checkpoint_store
+from backend.repository_index import RepositoryIndex
 
 
 class ServiceContainer:
@@ -23,6 +25,8 @@ class ServiceContainer:
         self.register_instance("CapabilityRegistry", capability_registry)
         # ConfigService: lazy singleton via factory so YAML is parsed once on first use
         self.register_factory("ConfigService", get_config_service)
+        # CheckpointStore: lazy singleton for crash recovery persistence
+        self.register_factory("CheckpointStore", get_checkpoint_store)
 
     def register_instance(self, service_name: str, instance: Any) -> None:
         """Registers a singleton instance by service name."""
