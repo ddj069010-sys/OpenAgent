@@ -21,10 +21,16 @@ export function useScrollToBottom(scrollRef: RefObject<HTMLDivElement | null>) {
   }, []);
 
   // Handle scroll events
+  const hitBottomRef = useRef(true);
+  const autoscrollRef = useRef(true);
+
   const onChatBodyScroll = useCallback(
     (e: HTMLElement) => {
       const isCurrentlyAtBottom = isAtBottom(e);
-      setHitBottom(isCurrentlyAtBottom);
+      if (hitBottomRef.current !== isCurrentlyAtBottom) {
+        hitBottomRef.current = isCurrentlyAtBottom;
+        setHitBottom(isCurrentlyAtBottom);
+      }
 
       // Get current scroll position
       const currentScrollTop = e.scrollTop;
@@ -36,12 +42,14 @@ export function useScrollToBottom(scrollRef: RefObject<HTMLDivElement | null>) {
       prevScrollTopRef.current = currentScrollTop;
 
       // Turn off autoscroll only when scrolling up
-      if (isScrollingUp) {
+      if (isScrollingUp && autoscrollRef.current !== false) {
+        autoscrollRef.current = false;
         setAutoscroll(false);
       }
 
       // Turn on autoscroll when scrolled to the bottom
-      if (isCurrentlyAtBottom) {
+      if (isCurrentlyAtBottom && autoscrollRef.current !== true) {
+        autoscrollRef.current = true;
         setAutoscroll(true);
       }
     },

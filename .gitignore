@@ -3,6 +3,7 @@ public/locales/**/*
 src/i18n/declaration.ts
 .env
 .envrc
+cookies.txt
 node_modules/
 build/
 logs/

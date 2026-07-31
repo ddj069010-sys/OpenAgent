@@ -905,6 +905,7 @@ async function main() {
 
   let shuttingDown = false;
   let frontend = null;
+  let localModelManager = null;
 
   const shutdown = (signal = "SIGTERM") => {
     if (shuttingDown) {
@@ -915,11 +916,17 @@ async function main() {
     if (frontend) {
       signalProcessTree(frontend, signal);
     }
+    if (localModelManager) {
+      signalProcessTree(localModelManager, signal);
+    }
     signalProcessTree(backend, signal);
 
     setTimeout(() => {
       if (frontend && isProcessRunning(frontend)) {
         signalProcessTree(frontend, "SIGKILL");
+      }
+      if (localModelManager && isProcessRunning(localModelManager)) {
+        signalProcessTree(localModelManager, "SIGKILL");
       }
       if (isProcessRunning(backend)) {
         signalProcessTree(backend, "SIGKILL");
@@ -956,6 +963,23 @@ async function main() {
     shutdown();
     throw error;
   }
+
+  console.log("Starting Local Model Manager orchestrator...");
+  localModelManager = spawnProcess("node", ["scripts/local-model-manager.mjs"], {
+    env: {
+      ...process.env,
+      LOCAL_MODEL_MANAGER_PORT: "19000",
+      BACKEND_PORT: String(config.backendPort),
+      LOCAL_BACKEND_API_KEY: config.sessionApiKey,
+    }
+  });
+
+  localModelManager.once("exit", (code) => {
+    if (!shuttingDown) {
+      console.error(`LocalModelManager exited unexpectedly with code ${code ?? 0}`);
+      shutdown();
+    }
+  });
 
   const frontendCommand = buildNpmScriptCommand("dev:frontend");
   const runtimeServicesInfo = buildRuntimeServicesInfo({

@@ -1394,6 +1394,18 @@ async function main(options = {}) {
     );
   }
 
+  if (agentServerReady) {
+    logService("localmgr", "Starting Local Model Manager orchestrator...", c.cyan);
+    spawnService("localmgr", "node", ["scripts/local-model-manager.mjs"], {
+      env: {
+        LOCAL_MODEL_MANAGER_PORT: "19000",
+        BACKEND_PORT: String(config.agentServerPort),
+        LOCAL_BACKEND_API_KEY: config.sessionApiKey,
+      },
+      color: c.cyan,
+    });
+  }
+
   // 2. Seed automation API key into agent-server secrets
   // This makes the key available to agents during conversations
   // Note: seedAutomationSecret has its own retry logic if server is still warming up

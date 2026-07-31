@@ -30,6 +30,7 @@ export const useWebSocket = <T = string>(
   const allowedToReconnectRef = React.useRef<WeakSet<WebSocket>>(new WeakSet());
 
   // Store options in a ref to avoid reconnecting when callbacks change
+  const lastMessageRef = React.useRef<T | null>(null);
   const optionsRef = React.useRef(options);
   React.useEffect(() => {
     optionsRef.current = options;
@@ -67,7 +68,12 @@ export const useWebSocket = <T = string>(
     };
 
     ws.onmessage = (event) => {
-      setLastMessage(event.data);
+      if (lastMessageRef.current !== event.data) {
+        lastMessageRef.current = event.data;
+        React.startTransition(() => {
+          setLastMessage(event.data);
+        });
+      }
       optionsRef.current?.onMessage?.(event);
     };
 
