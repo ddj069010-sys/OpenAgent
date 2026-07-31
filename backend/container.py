@@ -73,6 +73,8 @@ class ServiceContainer:
         self.register_instance("PerformanceProfiler", PerformanceProfiler())
         # CognitiveEngine: transient — bound to a workspace root
         self.register_factory("CognitiveEngine", lambda: __import__("backend.cognitive_engine", fromlist=["CognitiveEngine"]).CognitiveEngine)
+        # AutonomousExecutionFramework: transient — circulatory system connecting all subsystems
+        self.register_factory("AutonomousExecutionFramework", lambda: __import__("backend.autonomous_execution_framework", fromlist=["AutonomousExecutionFramework"]).AutonomousExecutionFramework)
 
     def register_instance(self, service_name: str, instance: Any) -> None:
         """Registers a singleton instance by service name."""
