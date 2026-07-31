@@ -15,6 +15,15 @@ from backend.reflection_engine import ReflectionEngine
 from backend.task_planner import TaskPlanner
 from backend.knowledge_base import WorkspaceKnowledgeBase
 from backend.property_graph import UnifiedPropertyGraph
+from backend.environment_manager import EnvironmentManager
+from backend.resource_scheduler import ResourceScheduler
+from backend.job_scheduler import JobScheduler
+from backend.workspace_manager import WorkspaceManager
+from backend.repository_watcher import RepositoryWatcher
+from backend.persistent_memory import PersistentMemory
+from backend.environment_bootstrap import EnvironmentBootstrap
+from backend.developer_experience import DeveloperExperience
+from backend.performance_profiler import PerformanceProfiler
 
 
 class ServiceContainer:
@@ -40,6 +49,24 @@ class ServiceContainer:
         self.register_factory("WorkspaceKnowledgeBase", lambda: WorkspaceKnowledgeBase)
         # UnifiedPropertyGraph: transient — bound to a specific workspace root
         self.register_factory("UnifiedPropertyGraph", lambda: UnifiedPropertyGraph)
+        # EnvironmentManager: transient — bound to a specific run path
+        self.register_factory("EnvironmentManager", lambda: EnvironmentManager)
+        # ResourceScheduler: singleton
+        self.register_instance("ResourceScheduler", ResourceScheduler())
+        # JobScheduler: singleton
+        self.register_instance("JobScheduler", JobScheduler())
+        # WorkspaceManager: transient — bound to a manager root
+        self.register_factory("WorkspaceManager", lambda: WorkspaceManager)
+        # RepositoryWatcher: transient — bound to a workspace root
+        self.register_factory("RepositoryWatcher", lambda: RepositoryWatcher)
+        # PersistentMemory: transient — bound to a file path
+        self.register_factory("PersistentMemory", lambda: PersistentMemory)
+        # EnvironmentBootstrap: transient — bound to a workspace path
+        self.register_factory("EnvironmentBootstrap", lambda: EnvironmentBootstrap)
+        # DeveloperExperience: transient — bound to a workspace root
+        self.register_factory("DeveloperExperience", lambda: DeveloperExperience)
+        # PerformanceProfiler: singleton
+        self.register_instance("PerformanceProfiler", PerformanceProfiler())
 
     def register_instance(self, service_name: str, instance: Any) -> None:
         """Registers a singleton instance by service name."""
