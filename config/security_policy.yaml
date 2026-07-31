@@ -1,0 +1,59 @@
+# ============================================================
+# OpenAgent Security Policy  (Target Architecture v3 §26)
+# Defines permission tiers, tool access boundaries, and
+# sandbox isolation rules for the agent execution environment.
+#
+# Every tool check MUST query this policy via CapabilityRegistry.
+# No tool may escalate privileges beyond its declared tier.
+# ============================================================
+
+tool_permission_tiers:
+  # Tier 1 — Read-only, always safe
+  read_only:
+    - file_read
+    - git_status
+    - git_log
+    - git_diff
+    - search_code
+    - list_directory
+
+  # Tier 2 — Write operations, require workspace isolation
+  write_isolated:
+    - file_edit
+    - file_create
+    - file_delete
+    - terminal_execute
+    - python_execute
+
+  # Tier 3 — Network & browser, require explicit user approval
+  network:
+    - browser_navigate
+    - http_fetch
+
+  # Tier 4 — Destructive, require explicit per-session approval
+  destructive:
+    - docker_exec
+    - git_push
+    - git_force_push
+
+sandbox:
+  # Agent runs in workspace isolation; never accesses paths outside projects_dir
+  workspace_isolation: true
+  projects_dir: ~/.openhands/agent-canvas/workspaces
+
+  # File system operations must never touch these paths
+  protected_paths:
+    - ~/.ssh
+    - ~/.gnupg
+    - /etc
+    - /usr
+    - /bin
+    - /sbin
+
+credentials:
+  # API keys and secrets must NEVER be written to files or logs
+  mask_in_logs: true
+  allowed_env_vars:
+    - LOCAL_BACKEND_API_KEY
+    - LOCAL_MODEL_MANAGER_PORT
+    - BACKEND_PORT

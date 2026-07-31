@@ -1,0 +1,28 @@
+# ============================================================
+# OpenAgent Hardware Profile  (Target Architecture v3 §18.5)
+# Declares hardware constraints for the local execution host.
+#
+# The Capability Registry (backend/capability_registry.py) reads
+# this file at startup.  Any subsystem needing hardware limits
+# queries CapabilityRegistry — never reads this file directly.
+# ============================================================
+
+gpu:
+  name: "NVIDIA GeForce RTX 3050 Laptop GPU"
+  vram_total_mb: 4096
+  # Leave this headroom free so the OS/driver stays stable
+  vram_safety_margin_mb: 256
+  # Hard ceiling for llama-server — abort swap if free VRAM < this
+  vram_minimum_free_mb: 400
+
+system:
+  ram_total_mb: 24576
+  # Maximum combined RAM budget for the full dev stack
+  ram_budget_mb: 6144
+
+inference:
+  # Only ONE model may be loaded at a time
+  single_model_policy: true
+  # Default layer offload if not overridden in model.yaml
+  default_n_gpu_layers: -1
+  default_context_size: 4096

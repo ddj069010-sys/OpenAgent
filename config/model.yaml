@@ -1,0 +1,47 @@
+# ============================================================
+# OpenAgent Model Configuration  (Target Architecture v3 §18.5)
+# Single authoritative source for model routing parameters.
+#
+# Precedence (lowest → highest):
+#   defaults.json  →  this file  →  env vars  →  runtime API
+# ============================================================
+
+local_model_manager:
+  port: 19000
+  models_dir: ~/llama.cpp/models
+  llama_server_bin: ~/llama.cpp/llama-server
+  llama_server_port: 8080
+  health_check_timeout_ms: 800
+  max_swap_retries: 3
+  provisioning_delay_ms: 2000
+
+# Per-model GPU offload configuration.
+# -1 means "let llama.cpp decide" (offload all layers that fit).
+# Reduce n_gpu_layers for larger models to stay within VRAM budget.
+models:
+  chat-3b:
+    n_gpu_layers: -1
+    context_size: 4096
+    cost_per_token: 0.0
+
+  code-7b:
+    n_gpu_layers: 28
+    context_size: 2048
+    cost_per_token: 0.0
+
+  deepseek-r1:
+    n_gpu_layers: 20
+    context_size: 2048
+    cost_per_token: 0.0
+
+  embedding:
+    n_gpu_layers: -1
+    context_size: 512
+    cost_per_token: 0.0
+    exclude_from_agent_profiles: true
+
+  embedding-small:
+    n_gpu_layers: -1
+    context_size: 512
+    cost_per_token: 0.0
+    exclude_from_agent_profiles: true

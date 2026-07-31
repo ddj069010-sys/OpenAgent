@@ -283,6 +283,57 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // Route: GET /api/vram/status — live GPU VRAM telemetry (Target Architecture v3 §18.4)
+  if (req.method === "GET" && req.url === "/api/vram/status") {
+    try {
+      const { execSync } = await import("node:child_process");
+      let vramFree = 0, vramTotal = 0, gpuName = "Unknown";
+      try {
+        const raw = execSync(
+          "nvidia-smi --query-gpu=memory.free,memory.total,name --format=csv,noheader,nounits",
+          { encoding: "utf8", timeout: 3000 }
+        ).trim();
+        const parts = raw.split(",").map(s => s.trim());
+        vramFree  = parseInt(parts[0], 10) || 0;
+        vramTotal = parseInt(parts[1], 10) || 0;
+        gpuName   = parts[2] || "NVIDIA GPU";
+      } catch (_) {
+        // nvidia-smi not available or GPU absent — return zeroes
+      }
+      const vramUsed = vramTotal - vramFree;
+      const usagePct = vramTotal > 0 ? ((vramUsed / vramTotal) * 100).toFixed(1) : "0.0";
+      const payload = {
+        active_model:      currentModel,
+        is_switching:      isSwitching,
+        gpu_name:          gpuName,
+        vram_free_mb:      vramFree,
+        vram_used_mb:      vramUsed,
+        vram_total_mb:     vramTotal,
+        vram_usage_percent: parseFloat(usagePct),
+        timestamp:         Date.now()
+      };
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(payload));
+    } catch (e) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: e.message }));
+    }
+    return;
+  }
+
+  // Route: GET /api/status — orchestrator health summary
+  if (req.method === "GET" && req.url === "/api/status") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({
+      status:        "ok",
+      active_model:  currentModel,
+      is_switching:  isSwitching,
+      port:          PORT,
+      timestamp:     Date.now()
+    }));
+    return;
+  }
+
   // Buffer request body for inspection and proxying
   let bodyBuffer = Buffer.alloc(0);
   req.on("data", chunk => {

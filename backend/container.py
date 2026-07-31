@@ -5,8 +5,10 @@ Provides Dependency Injection and Service Resolution for all backend modules.
 Ensures subsystems consume abstractions/interfaces, never concrete dependencies directly.
 """
 
-from typing import Dict, Type, Any, Callable, Optional
+from typing import Dict, Any, Callable
 from backend.capability_registry import CapabilityRegistry, capability_registry
+from backend.config.service import get_config_service
+
 
 class ServiceContainer:
     """Lightweight Inversion of Control (IoC) Container."""
@@ -19,6 +21,8 @@ class ServiceContainer:
     def _setup_defaults(self):
         """Registers default core services into composition root."""
         self.register_instance("CapabilityRegistry", capability_registry)
+        # ConfigService: lazy singleton via factory so YAML is parsed once on first use
+        self.register_factory("ConfigService", get_config_service)
 
     def register_instance(self, service_name: str, instance: Any) -> None:
         """Registers a singleton instance by service name."""

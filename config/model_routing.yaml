@@ -1,0 +1,49 @@
+# ============================================================
+# OpenAgent Model Routing Configuration  (Target Architecture v3 §18.5)
+# Defines routing rules so every LLM request flows through
+# LocalModelManager — never directly to llama-server.
+#
+# Precedence: this file  →  env vars  →  runtime API override
+# ============================================================
+
+# All local inference requests MUST route through LocalModelManager
+local_model_manager:
+  base_url: "http://localhost:19000/v1"
+  api_key: "local-no-key-needed"
+
+routing_rules:
+  # Default: all models without an explicit rule route to LocalModelManager
+  default_backend: local_model_manager
+
+  # Model-specific overrides (future: cloud fallback for large tasks)
+  overrides: []
+    # Example future entry:
+    # - model_pattern: "gpt-4*"
+    #   backend: openai_cloud
+    #   requires_user_approval: true
+
+litellm:
+  # Drop params not supported by llama.cpp's OpenAI-compatible server
+  drop_params: true
+  modify_params: true
+  native_tool_calling: true
+  stream: false
+  timeout_seconds: 300
+  num_retries: 3
+  max_message_chars: 30000
+
+  # Suppress "model not mapped" cost warnings for local free-tier models
+  # These entries register local model names with $0.00 cost
+  local_model_cost_overrides:
+    - model: "chat-3b"
+      input_cost_per_token: 0.0
+      output_cost_per_token: 0.0
+    - model: "code-7b"
+      input_cost_per_token: 0.0
+      output_cost_per_token: 0.0
+    - model: "deepseek-r1"
+      input_cost_per_token: 0.0
+      output_cost_per_token: 0.0
+    - model: "embedding"
+      input_cost_per_token: 0.0
+      output_cost_per_token: 0.0
