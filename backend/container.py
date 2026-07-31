@@ -10,6 +10,9 @@ from backend.capability_registry import CapabilityRegistry, capability_registry
 from backend.config.service import get_config_service
 from backend.checkpoint_store import CheckpointStore, get_checkpoint_store
 from backend.repository_index import RepositoryIndex
+from backend.context_engine import ContextEngine
+from backend.reflection_engine import ReflectionEngine
+from backend.task_planner import TaskPlanner
 
 
 class ServiceContainer:
@@ -27,6 +30,10 @@ class ServiceContainer:
         self.register_factory("ConfigService", get_config_service)
         # CheckpointStore: lazy singleton for crash recovery persistence
         self.register_factory("CheckpointStore", get_checkpoint_store)
+        # ReflectionEngine: transient — each task gets its own retry budget
+        self.register_factory("ReflectionEngine", lambda: ReflectionEngine(max_attempts=3))
+        # TaskPlanner: transient — each goal gets a fresh plan DAG
+        self.register_factory("TaskPlanner", TaskPlanner)
 
     def register_instance(self, service_name: str, instance: Any) -> None:
         """Registers a singleton instance by service name."""
