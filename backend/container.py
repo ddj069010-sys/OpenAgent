@@ -13,6 +13,8 @@ from backend.repository_index import RepositoryIndex
 from backend.context_engine import ContextEngine
 from backend.reflection_engine import ReflectionEngine
 from backend.task_planner import TaskPlanner
+from backend.knowledge_base import WorkspaceKnowledgeBase
+from backend.property_graph import UnifiedPropertyGraph
 
 
 class ServiceContainer:
@@ -34,6 +36,10 @@ class ServiceContainer:
         self.register_factory("ReflectionEngine", lambda: ReflectionEngine(max_attempts=3))
         # TaskPlanner: transient — each goal gets a fresh plan DAG
         self.register_factory("TaskPlanner", TaskPlanner)
+        # WorkspaceKnowledgeBase: transient — bound to a specific workspace root
+        self.register_factory("WorkspaceKnowledgeBase", lambda: WorkspaceKnowledgeBase)
+        # UnifiedPropertyGraph: transient — bound to a specific workspace root
+        self.register_factory("UnifiedPropertyGraph", lambda: UnifiedPropertyGraph)
 
     def register_instance(self, service_name: str, instance: Any) -> None:
         """Registers a singleton instance by service name."""
