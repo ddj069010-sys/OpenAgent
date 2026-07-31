@@ -45,6 +45,10 @@ class ServiceContainer:
         self.register_factory("ReflectionEngine", lambda: ReflectionEngine(max_attempts=3))
         # TaskPlanner: transient — each goal gets a fresh plan DAG
         self.register_factory("TaskPlanner", TaskPlanner)
+        # RepositoryIndex: transient — bound to a specific workspace root
+        self.register_factory("RepositoryIndex", lambda: RepositoryIndex)
+        # ContextEngine: transient — returning class reference
+        self.register_factory("ContextEngine", lambda: ContextEngine)
         # WorkspaceKnowledgeBase: transient — bound to a specific workspace root
         self.register_factory("WorkspaceKnowledgeBase", lambda: WorkspaceKnowledgeBase)
         # UnifiedPropertyGraph: transient — bound to a specific workspace root
