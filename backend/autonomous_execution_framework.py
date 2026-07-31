@@ -12,47 +12,28 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Set
 
+from pathlib import Path
+
 from backend.container import container
 from backend.task_state_machine import TaskState, TaskStateMachine
+from backend.execution_types import ExecutionNode, NodeCostEstimation
+
+# re-export so callers that do `from backend.autonomous_execution_framework import ExecutionNode`
+# continue to work without change
+__all__ = ["ExecutionNode", "NodeCostEstimation", "AutonomousExecutionFramework",
+           "ContextCompressor", "SkillPipelineManager", "ExecutionGraph",
+           "SelfEvaluationReport", "SkillType"]
 
 
 class SkillType(Enum):
-    CODING = "coding"
-    ARCHITECTURE = "architecture"
-    DEBUGGING = "debugging"
-    PERFORMANCE = "performance"
+    CODING        = "coding"
+    ARCHITECTURE  = "architecture"
+    DEBUGGING     = "debugging"
+    PERFORMANCE   = "performance"
     DOCUMENTATION = "documentation"
-    TESTING = "testing"
-    REFACTORING = "refactoring"
-    SECURITY = "security"
-
-
-@dataclass
-class NodeCostEstimation:
-    est_tokens:    int = 0
-    est_context:   int = 0
-    est_vram_mb:   float = 0.0
-    est_ram_mb:    float = 0.0
-    est_runtime:   float = 0.0
-    est_tool_calls: int = 0
-    est_risk:      str = "LOW"  # "LOW", "MEDIUM", "HIGH"
-
-
-@dataclass
-class ExecutionNode:
-    id:                    str
-    name:                  str
-    depends_on:            Set[str] = field(default_factory=set)
-    estimated_cost:        NodeCostEstimation = field(default_factory=NodeCostEstimation)
-    required_capabilities: List[str] = field(default_factory=list)
-    state:                 TaskState = TaskState.QUEUED
-    retry_count:           int = 0
-    max_retries:           int = 3
-
-    # The actual execution callback
-    action:                Optional[Callable[[], Any]] = None
-    result:                Optional[Any] = None
-    error:                 Optional[str] = None
+    TESTING       = "testing"
+    REFACTORING   = "refactoring"
+    SECURITY      = "security"
 
 
 @dataclass
@@ -241,34 +222,130 @@ class AutonomousExecutionFramework:
     """
 
     def __init__(self, workspace_root: str) -> None:
+        # Lazy-import sub-components here to avoid circular module-level imports
+        from backend.cost_aware_planner import CostAwarePlanner
+        from backend.repair_journal import RepairJournal
+        from backend.execution_checkpoint import ExecutionCheckpoint
+
         self.workspace_root = workspace_root
-        self.state_machine = TaskStateMachine(task_id="execution_framework_root")
-        self.pipeline_mgr = SkillPipelineManager(workspace_root)
+        self.state_machine  = TaskStateMachine(task_id="execution_framework_root")
+        self.pipeline_mgr   = SkillPipelineManager(workspace_root)
+        self.cost_planner   = CostAwarePlanner()
+        self.repair_journal = RepairJournal()
+        cp_path = Path(workspace_root) / "run" / "checkpoints" / "execution.db"
+        self.checkpoint     = ExecutionCheckpoint(cp_path)
 
     def execute_skill(self, skill: SkillType, request: str) -> SelfEvaluationReport:
         import uuid
-        state_machine = TaskStateMachine(task_id=f"run_{uuid.uuid4().hex[:8]}")
+        run_id        = f"run_{uuid.uuid4().hex[:8]}"
+        state_machine = TaskStateMachine(task_id=run_id)
+
         # Build execution graph
         graph = self.pipeline_mgr.create_graph(skill, request)
-        
-        # Reflection engine for node-level repair
+        nodes = list(graph.nodes.values())
+
+        # ── Phase A: Pre-flight cost estimation ──────────────────────────────
+        cost_summary = self.cost_planner.estimate(nodes)
+        # Log warnings to repair journal as informational entries
+        for warning in cost_summary.warnings:
+            self.repair_journal.record(
+                task_id=run_id, node_id="_planner",
+                failure_class="RESOURCE_WARNING",
+                error_message=warning,
+                repair_strategy="reduce_context_or_model",
+                outcome="PARTIAL",
+            )
+
+        # ── Phase B: Skip already-checkpointed nodes ─────────────────────────
+        for node in nodes:
+            if self.checkpoint.is_complete(run_id, node.id):
+                node.state = TaskState.COMPLETED
+                node.result = self.checkpoint.load(run_id, node.id)
+
+        # ── Phase C: Reflection engine for node-level repair ─────────────────
         reflection_engine = container.resolve("ReflectionEngine")
-        
-        # Execute the graph
+
+        # ── Phase D: Execute the graph ───────────────────────────────────────
         start_time = time.perf_counter()
-        success = graph.execute_all(state_machine, reflection_engine)
+        repair_count = 0
+
+        # Monkey-patch node actions to add checkpointing + repair journaling
+        original_execute = graph.execute_all
+
+        def instrumented_execute(sm: TaskStateMachine, re: Any) -> bool:
+            nonlocal repair_count
+            if sm.state == TaskState.QUEUED:
+                sm.transition(TaskState.PLANNING)
+            if sm.state == TaskState.PLANNING:
+                sm.transition(TaskState.RUNNING)
+
+            while True:
+                ready = graph.get_ready_nodes()
+                if not ready:
+                    break
+                for node in ready:
+                    node.state = TaskState.RUNNING
+                    success_node = False
+                    while node.retry_count <= node.max_retries:
+                        try:
+                            if node.action:
+                                node.result = node.action()
+                            # Checkpoint immediately after success
+                            self.checkpoint.save(run_id, node.id, node.result)
+                            node.state = TaskState.COMPLETED
+                            success_node = True
+                            break
+                        except Exception as exc:
+                            node.retry_count += 1
+                            node.error = str(exc)
+                            repair_count += 1
+                            if sm.state == TaskState.RUNNING:
+                                sm.transition(TaskState.REPAIRING)
+                            strategy = re.reflect(
+                                raw_output=f"Node {node.name} failed: {node.error}",
+                                task_id=node.id,
+                            )
+                            # Record in repair journal
+                            already_failed = self.repair_journal.failed_strategies(run_id, node.id)
+                            outcome = "FAILURE" if strategy in already_failed else "PARTIAL"
+                            self.repair_journal.record(
+                                task_id=run_id, node_id=node.id,
+                                failure_class="RUNTIME",
+                                error_message=node.error,
+                                repair_strategy=str(strategy),
+                                outcome=outcome,
+                            )
+                            if node.retry_count > node.max_retries:
+                                node.state = TaskState.FAILED
+                                break
+                    if not success_node:
+                        sm.transition(TaskState.FAILED)
+                        return False
+
+            all_ok = all(n.state == TaskState.COMPLETED for n in graph.nodes.values())
+            if all_ok:
+                if sm.state == TaskState.RUNNING:
+                    sm.transition(TaskState.TESTING)
+                elif sm.state == TaskState.REPAIRING:
+                    sm.transition(TaskState.TESTING)
+                sm.transition(TaskState.COMPLETED)
+            else:
+                sm.transition(TaskState.FAILED)
+            return all_ok
+
+        success  = instrumented_execute(state_machine, reflection_engine)
         duration = time.perf_counter() - start_time
-        
-        # Self-Evaluation
+
+        # ── Phase E: Self-Evaluation ─────────────────────────────────────────
         return SelfEvaluationReport(
-            planning_quality=0.95 if success else 0.40,
-            context_quality=0.90,
-            tool_quality=0.85,
-            patch_quality=0.92 if success else 0.0,
-            runtime_seconds=duration,
-            token_usage=1800,
-            vram_usage_mb=1200.0,
-            repair_count=0,
-            confidence=0.88 if success else 0.30,
-            failure_reason=None if success else "Graph execution aborted due to step failure"
+            planning_quality  = 0.95 if success else 0.40,
+            context_quality   = 0.90,
+            tool_quality      = 0.85,
+            patch_quality     = 0.92 if success else 0.0,
+            runtime_seconds   = duration,
+            token_usage       = cost_summary.total_tokens,
+            vram_usage_mb     = cost_summary.peak_vram_mb,
+            repair_count      = repair_count,
+            confidence        = 0.88 if success else 0.30,
+            failure_reason    = None if success else "Graph execution aborted due to step failure",
         )

@@ -7,10 +7,10 @@ from backend.autonomous_execution_framework import (
     AutonomousExecutionFramework,
     ContextCompressor,
     ExecutionGraph,
-    ExecutionNode,
     SkillType,
     SelfEvaluationReport
 )
+from backend.execution_types import ExecutionNode, NodeCostEstimation
 from backend.task_state_machine import TaskState, TaskStateMachine
 from backend.reflection_engine import ReflectionEngine
 
